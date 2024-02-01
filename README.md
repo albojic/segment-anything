@@ -101,6 +101,8 @@ Click the links below to download the checkpoint for the corresponding model typ
 - `vit_l`: [ViT-L SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
 - `vit_b`: [ViT-B SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
 
+The SAM model can be loaded with 3 different encoders: ViT-B, ViT-L, and ViT-H. ViT-H improves substantially over ViT-B but has only marginal gains over ViT-L. These encoders have different parameter counts, with ViT-B having 91M, ViT-L having 308M, and ViT-H having 636M parameters. This difference in size also influences the speed of inference, so keep that in mind when choosing the encoder for your specific use case.
+
 ## Dataset
 
 See [here](https://ai.facebook.com/datasets/segment-anything/) for an overview of the datastet. The dataset can be downloaded [here](https://ai.facebook.com/datasets/segment-anything-downloads/). By downloading the datasets you agree that you have read and accepted the terms of the SA-1B Dataset Research License.
