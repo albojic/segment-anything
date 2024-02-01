@@ -71,7 +71,7 @@ def plot_masks(anns):
     img[:, :, 3] = 0
     for ann in sorted_anns:
         m = ann['segmentation']
-        color_mask = np.concatenate([np.random.random(3), [0.45]])
+        color_mask = np.concatenate([np.random.random(3), [1]])
         img[m] = color_mask
     ax.imshow(img)
 
@@ -88,7 +88,7 @@ def plot_segmentation(image: np.ndarray, masks: List[Dict], write=False, filenam
 
 
 def compute_iou(bbox: List):
-    default_pipe_bbox = [0, 100, 768, 376]
+    default_pipe_bbox = [250, 200, 268, 276] # in XYWH format
     area_def_bbox = default_pipe_bbox[2] * default_pipe_bbox[3]
     area_bbox = bbox[2] * bbox[3]
 
@@ -97,7 +97,7 @@ def compute_iou(bbox: List):
         max(default_pipe_bbox[1], bbox[1]),
         min(default_pipe_bbox[0] + default_pipe_bbox[2], bbox[0] + bbox[2]),
         min(default_pipe_bbox[1] + default_pipe_bbox[3], bbox[1] + bbox[3]),
-    ]
+    ] # not WH but abs pixel values
 
     area_of_overlap = max(0, bbox_intersect[2] - bbox_intersect[0]) * max(0, bbox_intersect[3] - bbox_intersect[1])
     area_of_union = area_def_bbox + area_bbox - area_of_overlap
