@@ -81,10 +81,12 @@ def plot_segmentation(image: np.ndarray, masks: List[Dict]):
 
 
 if __name__ == "__main__":
-    img_path = str(Path.joinpath(Path.cwd().parent, "data", "30-59_45_ORIGINAL.jpg"))
-    image = cv.imread(img_path)[100:]
-    masks = segment_with_custom_mask_generator(image)
-    masks_filtered = remove_masks_with_area_smaller_than(masks)
-    plot_segmentation(image, masks_filtered)
-    masks_filtered2 = remove_masks_with_area_smaller_than(masks, 50000)
-    plot_segmentation(image, masks_filtered2)
+    for root, dirs, files in os.walk((Path.joinpath(Path.cwd().parent,"data"))):
+        for filename in files:
+            img_path = str(Path.joinpath(Path.cwd().parent, "data", filename))
+            image = cv.imread(img_path)[100:]
+            masks = segment_with_custom_mask_generator(image)
+            masks_filtered = remove_masks_with_area_smaller_than(masks)
+            plot_segmentation(image, masks_filtered)
+            masks_filtered2 = remove_masks_with_area_smaller_than(masks, 50000)
+            plot_segmentation(image, masks_filtered2)
