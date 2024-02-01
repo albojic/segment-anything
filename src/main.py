@@ -5,7 +5,6 @@ from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskG
 import cv2 as cv
 import matplotlib.pyplot as plt
 
-
 PATH_MODEL_CHECKPOINT = str(Path.joinpath(Path.cwd().parent, "checkpoints", "sam_vit_h_4b8939.pth"))
 MODEL_TYPE = "vit_h"
 
@@ -20,7 +19,8 @@ MASK_GENERATOR = SamAutomaticMaskGenerator(
 )
 
 
-def segment_with_prompts(image: np.ndarray, prompts: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> List[Dict]:
+def segment_with_prompts(image: np.ndarray, prompts: np.ndarray, model_path=PATH_MODEL_CHECKPOINT,
+                         model_type=MODEL_TYPE) -> np.ndarray:
     sam = sam_model_registry[model_type](checkpoint=model_path)
     predictor = SamPredictor(sam)
     predictor.set_image(image)
@@ -30,9 +30,31 @@ def segment_with_prompts(image: np.ndarray, prompts: np.ndarray, model_path=PATH
 
 def segment(image: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> List[Dict]:
     sam = sam_model_registry[model_type](checkpoint=model_path)
+    sam.to(device="cuda")
     mask_generator = SamAutomaticMaskGenerator(sam)
     masks = mask_generator.generate(image)
     return masks
+
+
+def segment_with_custom_mask_generator(image: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE):
+    sam = sam_model_registry[model_type](checkpoint=model_path)
+    sam.to(device="cuda")
+    mask_generator = SamAutomaticMaskGenerator(
+        model=sam,
+        pred_iou_thresh=0.9,
+        stability_score_thresh=0.95,
+        crop_n_points_downscale_factor=2,
+        min_mask_region_area=500,
+    )
+    masks = mask_generator.generate(image)
+    return masks
+
+def remove_masks_with_area_smaller_than(masks, area_threshold=10000):
+    new_masks = []
+    for mask in masks:
+        if mask["area"] > area_threshold:
+            new_masks.append(mask)
+    return new_masks
 
 
 def plot_masks(anns):
@@ -43,15 +65,16 @@ def plot_masks(anns):
     ax.set_autoscale_on(False)
 
     img = np.ones((sorted_anns[0]['segmentation'].shape[0], sorted_anns[0]['segmentation'].shape[1], 4))
-    img[:,:,3] = 0
+    img[:, :, 3] = 0
     for ann in sorted_anns:
         m = ann['segmentation']
-        color_mask = np.concatenate([np.random.random(3), [0.35]])
+        color_mask = np.concatenate([np.random.random(3), [0.45]])
         img[m] = color_mask
     ax.imshow(img)
 
 
 def plot_segmentation(image: np.ndarray, masks: List[Dict]):
+    plt.figure()
     plt.imshow(image)
     plot_masks(masks)
     plt.show()
@@ -60,4 +83,8 @@ def plot_segmentation(image: np.ndarray, masks: List[Dict]):
 if __name__ == "__main__":
     img_path = str(Path.joinpath(Path.cwd().parent, "data", "30-59_45_ORIGINAL.jpg"))
     image = cv.imread(img_path)[100:]
-    masks = segment(image)
+    masks = segment_with_custom_mask_generator(image)
+    masks_filtered = remove_masks_with_area_smaller_than(masks)
+    plot_segmentation(image, masks_filtered)
+    masks_filtered2 = remove_masks_with_area_smaller_than(masks, 50000)
+    plot_segmentation(image, masks_filtered2)
