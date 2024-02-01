@@ -1,3 +1,4 @@
+import os
 from typing import List, Dict
 from pathlib import Path
 import numpy as np
@@ -5,7 +6,8 @@ from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskG
 import cv2 as cv
 import matplotlib.pyplot as plt
 
-PATH_MODEL_CHECKPOINT = str(Path.joinpath(Path.cwd().parent, "checkpoints", "sam_vit_h_4b8939.pth"))
+ROOT_DIR = Path.cwd().parent
+PATH_MODEL_CHECKPOINT = str(Path.joinpath(ROOT_DIR, "checkpoints", "sam_vit_h_4b8939.pth"))
 MODEL_TYPE = "vit_h"
 
 MASK_GENERATOR = SamAutomaticMaskGenerator(
@@ -73,20 +75,27 @@ def plot_masks(anns):
     ax.imshow(img)
 
 
-def plot_segmentation(image: np.ndarray, masks: List[Dict]):
+def plot_segmentation(image: np.ndarray, masks: List[Dict], write=False, filename=""):
     plt.figure()
     plt.imshow(image)
     plot_masks(masks)
-    plt.show()
-
+    if not write:
+        plt.show()
+    else:
+        plt.savefig(Path.joinpath(ROOT_DIR, "results", filename))
+        plt.close()
 
 if __name__ == "__main__":
-    for root, dirs, files in os.walk((Path.joinpath(Path.cwd().parent,"data"))):
+    if not os.path.exists(Path.joinpath(ROOT_DIR, "results")):
+        os.makedirs(Path.joinpath(ROOT_DIR, "results"))
+
+    for root, dirs, files in os.walk((Path.joinpath(ROOT_DIR,"data"))):
         for filename in files:
-            img_path = str(Path.joinpath(Path.cwd().parent, "data", filename))
+            img_path = str(Path.joinpath(ROOT_DIR, "data", filename))
             image = cv.imread(img_path)[100:]
             masks = segment_with_custom_mask_generator(image)
             masks_filtered = remove_masks_with_area_smaller_than(masks)
-            plot_segmentation(image, masks_filtered)
+            plot_segmentation(image, masks_filtered, True, filename[:-4]+"_automatically_masked.jpg")
             masks_filtered2 = remove_masks_with_area_smaller_than(masks, 50000)
-            plot_segmentation(image, masks_filtered2)
+            plot_segmentation(image, masks_filtered2, True, filename[:-4]+"_masked_50000.jpg")
+
