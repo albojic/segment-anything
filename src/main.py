@@ -51,7 +51,8 @@ def segment_with_custom_mask_generator(image: np.ndarray, model_path=PATH_MODEL_
     masks = mask_generator.generate(image)
     return masks
 
-def remove_masks_with_area_smaller_than(masks, area_threshold=10000):
+
+def remove_masks_with_area_smaller_than(masks, area_threshold=50000):
     new_masks = []
     for mask in masks:
         if mask["area"] > area_threshold:
@@ -85,17 +86,37 @@ def plot_segmentation(image: np.ndarray, masks: List[Dict], write=False, filenam
         plt.savefig(Path.joinpath(ROOT_DIR, "results", filename))
         plt.close()
 
+
+def compute_iou(bbox: List):
+    default_pipe_bbox = [0, 100, 768, 376]
+    area_def_bbox = default_pipe_bbox[2] * default_pipe_bbox[3]
+    area_bbox = bbox[2] * bbox[3]
+
+    bbox_intersect = [
+        max(default_pipe_bbox[0], bbox[0]),
+        max(default_pipe_bbox[1], bbox[1]),
+        min(default_pipe_bbox[0] + default_pipe_bbox[2], bbox[0] + bbox[2]),
+        min(default_pipe_bbox[1] + default_pipe_bbox[3], bbox[1] + bbox[3]),
+    ]
+
+    area_of_overlap = max(0, bbox_intersect[2] - bbox_intersect[0]) * max(0, bbox_intersect[3] - bbox_intersect[1])
+    area_of_union = area_def_bbox + area_bbox - area_of_overlap
+    return area_of_overlap / area_of_union
+
+
 if __name__ == "__main__":
     if not os.path.exists(Path.joinpath(ROOT_DIR, "results")):
         os.makedirs(Path.joinpath(ROOT_DIR, "results"))
 
-    for root, dirs, files in os.walk((Path.joinpath(ROOT_DIR,"data"))):
+    for root, dirs, files in os.walk((Path.joinpath(ROOT_DIR, "data"))):
         for filename in files:
             img_path = str(Path.joinpath(ROOT_DIR, "data", filename))
             image = cv.imread(img_path)[100:]
             masks = segment_with_custom_mask_generator(image)
             masks_filtered = remove_masks_with_area_smaller_than(masks)
-            plot_segmentation(image, masks_filtered, True, filename[:-4]+"_automatically_masked.jpg")
-            masks_filtered2 = remove_masks_with_area_smaller_than(masks, 50000)
-            plot_segmentation(image, masks_filtered2, True, filename[:-4]+"_masked_50000.jpg")
 
+            iou_scores = []
+            for mask in masks_filtered:
+                iou_scores.append(compute_iou(mask["bbox"]))
+
+            plot_segmentation(image, [masks_filtered[np.argmax(iou_scores)]])
