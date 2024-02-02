@@ -105,6 +105,25 @@ def compute_iou_bbox(bbox: List, bbox_reference=BBOX_PIPE_DEFAULT) -> float:
     return area_of_overlap / area_of_union
 
 
+def compute_iou_masks(mask1: Dict, mask2: Dict) -> float:
+    img_mask1 = np.where(mask1['segmentation'], 1, 0)
+    img_mask2 = np.where(mask2['segmentation'], 1, 0)
+    img_sum = img_mask1 + img_mask2
+    area_of_overlap = np.where(img_sum == 2, 1, 0).sum()
+    area_of_union = np.where(img_sum != 0, 1, 0).sum()
+    return area_of_overlap / area_of_union
+
+
+def remove_partial_segmentation(masks: List[Dict], best_mask: Dict):
+    iou_masks = np.asarray([compute_iou_masks(best_mask, masks[i]) for i in range(len(masks))])
+    overlapping_masks = np.argwhere(iou_masks > 0.2)
+    if len(overlapping_masks) > 1:
+        print(len(overlapping_masks), overlapping_masks)
+        overlapping_masks_areas = [masks[i[0]]["area"] for i in overlapping_masks]
+        return masks[overlapping_masks[np.argmax([overlapping_masks_areas])][0]]
+    return best_mask
+
+
 if __name__ == "__main__":
     if not os.path.exists(Path.joinpath(ROOT_DIR, "results")):
         os.makedirs(Path.joinpath(ROOT_DIR, "results"))
@@ -116,8 +135,8 @@ if __name__ == "__main__":
             masks = segment_with_custom_mask_generator(image)
             masks_filtered = remove_masks_with_area_smaller_than(masks)
 
-            iou_scores = []
-            for mask in masks_filtered:
-                iou_scores.append(compute_iou(mask["bbox"]))
+            iou_scores = [compute_iou_bbox(mask["bbox"]) for mask in masks_filtered]
+            best_mask = remove_partial_segmentation(masks=masks_filtered,
+                                                    best_mask=masks_filtered[np.argmax(iou_scores)])
 
-            plot_segmentation(image, [masks_filtered[np.argmax(iou_scores)]])
+            plot_segmentation(image, [best_mask], True, filename[:-4] + "_pipe_masked.jpg")
