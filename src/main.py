@@ -22,7 +22,7 @@ def segment_with_prompts(image: np.ndarray, prompts: np.ndarray = PROMPT_DEFAULT
     predictor = SamPredictor(sam)
     predictor.set_image(image)
     masks, scores, logit = predictor.predict(point_coords=prompts, point_labels=prompts_labels, multimask_output=True)
-    return masks
+    return masks, scores
 
 
 def segment(image: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> List[Dict]:
@@ -38,10 +38,9 @@ def segment_with_custom_mask_generator(image: np.ndarray, model_path=PATH_MODEL_
     sam.to(device="cuda")
     mask_generator = SamAutomaticMaskGenerator(
         model=sam,
+        points_per_batch=128,
         pred_iou_thresh=0.9,
         stability_score_thresh=0.95,
-        crop_n_points_downscale_factor=2,
-        min_mask_region_area=500,
     )
     masks = mask_generator.generate(image)
     return masks
@@ -55,7 +54,28 @@ def remove_small_masks(masks, area_threshold=50000):
     return new_masks
 
 
-def plot_masks(anns):
+def show_mask(mask, ax, random_color=False):
+    if random_color:
+        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+    else:
+        color = np.array([30 / 255, 144 / 255, 255 / 255, 1])
+    h, w = mask.shape[-2:]
+    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    ax.imshow(mask_image)
+
+
+def plot_mask(image, mask, write=False, filename=""):
+    plt.figure()
+    plt.imshow(image)
+    show_mask(mask, plt.gca())
+    if not write:
+        plt.show()
+    else:
+        plt.savefig(Path.joinpath(ROOT_DIR, "results", filename))
+        plt.close()
+
+
+def show_anns(anns):
     if len(anns) == 0:
         return
     sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)
@@ -74,7 +94,7 @@ def plot_masks(anns):
 def plot_segmentation(image: np.ndarray, masks: List[Dict], write=False, filename=""):
     plt.figure()
     plt.imshow(image)
-    plot_masks(masks)
+    show_anns(masks)
     if not write:
         plt.show()
     else:
@@ -135,11 +155,16 @@ if __name__ == "__main__":
         for filename in files:
             img_path = str(Path.joinpath(ROOT_DIR, "data", filename))
             image = cv.imread(img_path)[100:]
-            masks = segment_with_custom_mask_generator(image)
-            masks_filtered = remove_small_masks(masks)
 
-            iou_scores = [compute_iou(mask) for mask in masks_filtered]
-            best_mask = remove_partial_segmentation(masks=masks_filtered,
-                                                    best_mask=masks_filtered[np.argmax(iou_scores)])
+            masks_prompted, scores = segment_with_prompts(image)
+            best_mask = masks_prompted[np.argmax(scores)]
+            plot_mask(image, best_mask, True, filename[:-4] + "_pipe_masked.jpg")
+
+            # masks = segment_with_custom_mask_generator(image)
+            # masks_filtered = remove_small_masks(masks)
+            #
+            # iou_scores = [compute_iou(mask) for mask in masks_filtered]
+            # best_mask = remove_partial_segmentation(masks=masks_filtered,
+            #                                         best_mask=masks_filtered[np.argmax(iou_scores)])
 
             # plot_segmentation(image, [best_mask], True, filename[:-4] + "_pipe_masked.jpg")
