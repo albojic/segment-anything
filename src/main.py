@@ -10,15 +10,18 @@ ROOT_DIR = Path.cwd().parent
 PATH_MODEL_CHECKPOINT = str(Path.joinpath(ROOT_DIR, "checkpoints", "sam_vit_h_4b8939.pth"))
 MODEL_TYPE = "vit_h"
 BBOX_PIPE_DEFAULT = [250, 200, 268, 276]
+PROMPT_DEFAULT = np.array([[384, 338]])
+PROMPT_LABEL_DEFAULT = np.asarray([1])
 
 
-
-def segment_with_prompts(image: np.ndarray, prompts: np.ndarray, model_path=PATH_MODEL_CHECKPOINT,
-                         model_type=MODEL_TYPE) -> np.ndarray:
+def segment_with_prompts(image: np.ndarray, prompts: np.ndarray = PROMPT_DEFAULT,
+                         prompts_labels: np.ndarray = PROMPT_LABEL_DEFAULT,
+                         model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> np.ndarray:
     sam = sam_model_registry[model_type](checkpoint=model_path)
+    sam.to(device="cuda")
     predictor = SamPredictor(sam)
     predictor.set_image(image)
-    masks, _, _ = predictor.predict(prompts)
+    masks, scores, logit = predictor.predict(point_coords=prompts, point_labels=prompts_labels, multimask_output=True)
     return masks
 
 
