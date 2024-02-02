@@ -10,18 +10,37 @@ ROOT_DIR = Path.cwd().parent
 PATH_MODEL_CHECKPOINT = str(Path.joinpath(ROOT_DIR, "checkpoints", "sam_vit_h_4b8939.pth"))
 MODEL_TYPE = "vit_h"
 BBOX_PIPE_DEFAULT = [250, 200, 268, 276]
-PROMPT_DEFAULT = np.array([[384, 338]])
-PROMPT_LABEL_DEFAULT = np.asarray([1])
+PROMPT_DEFAULT_1P = np.array([[384, 338]])
+PROMPT_LABEL_DEFAULT_1P = np.asarray([1])
+PROMPT_DEFAULT_2P = np.array([[300, 300], [400, 350]])  # [[250, 200], [384, 338]])
+PROMPT_LABEL_DEFAULT_2P = np.asarray([1, 1])
 
 
-def segment_with_prompts(image: np.ndarray, prompts: np.ndarray = PROMPT_DEFAULT,
-                         prompts_labels: np.ndarray = PROMPT_LABEL_DEFAULT,
+def segment_with_prompts(image: np.ndarray, prompts: np.ndarray = PROMPT_DEFAULT_1P,
+                         prompts_labels: np.ndarray = PROMPT_LABEL_DEFAULT_1P, refine=True,
                          model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> np.ndarray:
     sam = sam_model_registry[model_type](checkpoint=model_path)
-    sam.to(device="cuda")
+    sam.to(device="cuda:1")
     predictor = SamPredictor(sam)
     predictor.set_image(image)
-    masks, scores, logit = predictor.predict(point_coords=prompts, point_labels=prompts_labels, multimask_output=True)
+    masks, scores, logits = predictor.predict(point_coords=prompts, point_labels=prompts_labels, multimask_output=True)
+    if refine:
+        mask_input = logits[np.argmax(scores), :, :]
+        masks2, scores2 = refine_segmentation_with_second_prompt(predictor, mask_input=mask_input[None, :, :])
+        new_masks = []
+        [new_masks.append(mask) for mask in masks]
+        [new_masks.append(mask) for mask in masks2]
+        new_scores = []
+        [new_scores.append(s) for s in scores]
+        [new_scores.append(s) for s in scores2]
+        return new_masks, new_scores
+    return masks, scores
+
+
+def refine_segmentation_with_second_prompt(predictor, mask_input, prompts=PROMPT_DEFAULT_2P,
+                                           prompts_labels=PROMPT_LABEL_DEFAULT_2P):
+    masks, scores, logit = predictor.predict(point_coords=prompts, point_labels=prompts_labels, mask_input=mask_input,
+                                             multimask_output=False)
     return masks, scores
 
 
