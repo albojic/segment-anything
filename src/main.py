@@ -11,15 +11,6 @@ PATH_MODEL_CHECKPOINT = str(Path.joinpath(ROOT_DIR, "checkpoints", "sam_vit_h_4b
 MODEL_TYPE = "vit_h"
 BBOX_PIPE_DEFAULT = [250, 200, 268, 276]
 
-MASK_GENERATOR = SamAutomaticMaskGenerator(
-    model=sam_model_registry[MODEL_TYPE](checkpoint=PATH_MODEL_CHECKPOINT),
-    points_per_side=32,
-    pred_iou_thresh=0.86,
-    stability_score_thresh=0.92,
-    crop_n_layers=1,
-    crop_n_points_downscale_factor=2,
-    min_mask_region_area=100,  # Requires open-cv to run post-processing
-)
 
 
 def segment_with_prompts(image: np.ndarray, prompts: np.ndarray, model_path=PATH_MODEL_CHECKPOINT,
@@ -53,7 +44,7 @@ def segment_with_custom_mask_generator(image: np.ndarray, model_path=PATH_MODEL_
     return masks
 
 
-def remove_masks_with_area_smaller_than(masks, area_threshold=50000):
+def remove_small_masks(masks, area_threshold=50000):
     new_masks = []
     for mask in masks:
         if mask["area"] > area_threshold:
@@ -114,11 +105,20 @@ def compute_iou_masks(mask1: Dict, mask2: Dict) -> float:
     return area_of_overlap / area_of_union
 
 
+def compute_iou(mask, bbox=BBOX_PIPE_DEFAULT):
+    img_mask = np.where(mask['segmentation'], 1, 0)
+    img_bbox = np.zeros(img_mask.shape)
+    img_bbox[bbox[0]:bbox[0] + bbox[2], bbox[1]:bbox[1] + bbox[3]] = 1
+    img_sum = img_mask + img_bbox
+    area_of_overlap = np.where(img_sum == 2, 1, 0).sum()
+    area_of_union = np.where(img_sum != 0, 1, 0).sum()
+    return area_of_overlap / area_of_union
+
+
 def remove_partial_segmentation(masks: List[Dict], best_mask: Dict):
     iou_masks = np.asarray([compute_iou_masks(best_mask, masks[i]) for i in range(len(masks))])
     overlapping_masks = np.argwhere(iou_masks > 0.2)
     if len(overlapping_masks) > 1:
-        print(len(overlapping_masks), overlapping_masks)
         overlapping_masks_areas = [masks[i[0]]["area"] for i in overlapping_masks]
         return masks[overlapping_masks[np.argmax([overlapping_masks_areas])][0]]
     return best_mask
@@ -133,10 +133,10 @@ if __name__ == "__main__":
             img_path = str(Path.joinpath(ROOT_DIR, "data", filename))
             image = cv.imread(img_path)[100:]
             masks = segment_with_custom_mask_generator(image)
-            masks_filtered = remove_masks_with_area_smaller_than(masks)
+            masks_filtered = remove_small_masks(masks)
 
-            iou_scores = [compute_iou_bbox(mask["bbox"]) for mask in masks_filtered]
+            iou_scores = [compute_iou(mask) for mask in masks_filtered]
             best_mask = remove_partial_segmentation(masks=masks_filtered,
                                                     best_mask=masks_filtered[np.argmax(iou_scores)])
 
-            plot_segmentation(image, [best_mask], True, filename[:-4] + "_pipe_masked.jpg")
+            # plot_segmentation(image, [best_mask], True, filename[:-4] + "_pipe_masked.jpg")
