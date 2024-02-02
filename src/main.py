@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 ROOT_DIR = Path.cwd().parent
 PATH_MODEL_CHECKPOINT = str(Path.joinpath(ROOT_DIR, "checkpoints", "sam_vit_h_4b8939.pth"))
 MODEL_TYPE = "vit_h"
+BBOX_PIPE_DEFAULT = [250, 200, 268, 276]
 
 MASK_GENERATOR = SamAutomaticMaskGenerator(
     model=sam_model_registry[MODEL_TYPE](checkpoint=PATH_MODEL_CHECKPOINT),
@@ -87,20 +88,20 @@ def plot_segmentation(image: np.ndarray, masks: List[Dict], write=False, filenam
         plt.close()
 
 
-def compute_iou(bbox: List):
-    default_pipe_bbox = [250, 200, 268, 276] # in XYWH format
-    area_def_bbox = default_pipe_bbox[2] * default_pipe_bbox[3]
+def compute_iou_bbox(bbox: List, bbox_reference=BBOX_PIPE_DEFAULT) -> float:
+    # bboxes in XYWH format
+    area_ref_bbox = bbox_reference[2] * bbox_reference[3]
     area_bbox = bbox[2] * bbox[3]
 
     bbox_intersect = [
-        max(default_pipe_bbox[0], bbox[0]),
-        max(default_pipe_bbox[1], bbox[1]),
-        min(default_pipe_bbox[0] + default_pipe_bbox[2], bbox[0] + bbox[2]),
-        min(default_pipe_bbox[1] + default_pipe_bbox[3], bbox[1] + bbox[3]),
-    ] # not WH but abs pixel values
+        max(bbox_reference[0], bbox[0]),
+        max(bbox_reference[1], bbox[1]),
+        min(bbox_reference[0] + bbox_reference[2], bbox[0] + bbox[2]),
+        min(bbox_reference[1] + bbox_reference[3], bbox[1] + bbox[3]),
+    ]  # not WH but abs pixel values
 
     area_of_overlap = max(0, bbox_intersect[2] - bbox_intersect[0]) * max(0, bbox_intersect[3] - bbox_intersect[1])
-    area_of_union = area_def_bbox + area_bbox - area_of_overlap
+    area_of_union = area_ref_bbox + area_bbox - area_of_overlap
     return area_of_overlap / area_of_union
 
 
