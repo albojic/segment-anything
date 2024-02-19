@@ -5,6 +5,7 @@ import numpy as np
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 import cv2 as cv
 import matplotlib.pyplot as plt
+import torch
 
 ROOT_DIR = Path.cwd().parent
 PATH_MODEL_CHECKPOINT = str(Path.joinpath(ROOT_DIR, "checkpoints", "sam_vit_h_4b8939.pth"))
@@ -14,13 +15,14 @@ PROMPT_DEFAULT_1P = np.array([[384, 338]])
 PROMPT_LABEL_DEFAULT_1P = np.asarray([1])
 PROMPT_DEFAULT_2P = np.array([[300, 300], [400, 350]])  # [[250, 200], [384, 338]])
 PROMPT_LABEL_DEFAULT_2P = np.asarray([1, 1])
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def segment_with_prompts(image: np.ndarray, prompts: np.ndarray = PROMPT_DEFAULT_1P,
                          prompts_labels: np.ndarray = PROMPT_LABEL_DEFAULT_1P, refine=True,
                          model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> np.ndarray:
     sam = sam_model_registry[model_type](checkpoint=model_path)
-    sam.to(device="cuda:1")
+    sam.to(device=DEVICE)
     predictor = SamPredictor(sam)
     predictor.set_image(image)
     masks, scores, logits = predictor.predict(point_coords=prompts, point_labels=prompts_labels, multimask_output=True)
@@ -46,7 +48,7 @@ def refine_segmentation_with_second_prompt(predictor, mask_input, prompts=PROMPT
 
 def segment(image: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE) -> List[Dict]:
     sam = sam_model_registry[model_type](checkpoint=model_path)
-    sam.to(device="cuda")
+    sam.to(device=DEVICE)
     mask_generator = SamAutomaticMaskGenerator(sam)
     masks = mask_generator.generate(image)
     return masks
@@ -54,7 +56,7 @@ def segment(image: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODE
 
 def segment_with_custom_mask_generator(image: np.ndarray, model_path=PATH_MODEL_CHECKPOINT, model_type=MODEL_TYPE):
     sam = sam_model_registry[model_type](checkpoint=model_path)
-    sam.to(device="cuda")
+    sam.to(device=DEVICE)
     mask_generator = SamAutomaticMaskGenerator(
         model=sam,
         points_per_batch=128,
