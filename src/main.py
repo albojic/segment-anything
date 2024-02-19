@@ -170,13 +170,28 @@ if __name__ == "__main__":
     if not os.path.exists(Path.joinpath(ROOT_DIR, "results")):
         os.makedirs(Path.joinpath(ROOT_DIR, "results"))
 
+    list_files = []
+    list_areas = []
+
     for root, dirs, files in os.walk((Path.joinpath(ROOT_DIR, "data"))):
         for filename in files:
             img_path = str(Path.joinpath(ROOT_DIR, "data", filename))
             image = cv.imread(img_path)[100:]
 
             masks_prompted, scores = segment_with_prompts(image)
-            best_mask = masks_prompted[np.argmax(scores)]
+
+            masks_thresholded = []
+            scores_thresholded = []
+            for i in range(len(masks_prompted)):
+                mask_area = np.where(masks_prompted[i], 1, 0).sum()
+                if 80000 < mask_area < 290000:
+                    masks_thresholded.append(masks_prompted[i])
+                    scores_thresholded.append(scores[i])
+
+            best_mask = masks_thresholded[np.argmax(scores_thresholded)]
+            print(filename, np.where(best_mask, 1, 0).sum())
+            list_files.append(filename)
+            list_areas.append(np.where(best_mask, 1, 0).sum())
             plot_mask(image, best_mask, True, filename[:-4] + "_pipe_masked.jpg")
 
             # masks = segment_with_custom_mask_generator(image)
